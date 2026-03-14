@@ -33,6 +33,11 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional total timesteps for this training invocation.",
     )
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="Force headless browser mode for training stability.",
+    )
     return parser.parse_args()
 
 
@@ -55,6 +60,8 @@ def main() -> None:
     config = AppConfig.load(args.config)
     if args.timesteps is not None:
         config.training.total_timesteps = args.timesteps
+    if args.headless:
+        config.game.browser.headless = True
     run_dir = initialize_run_dir(config)
     persist_run_metadata(config, args.config.resolve(), run_dir)
     print_summary(console, config, run_dir)
