@@ -37,8 +37,18 @@ class EnvConfig:
     frame_height: int
     frame_stack: int
     grayscale: bool
+    crop_top: int
+    crop_bottom: int
+    crop_left: int
+    crop_right: int
     step_ms: float
     max_episode_steps: int
+    reward_mode: str
+    reward_scale: float
+    jump_penalty: float
+    obstacle_clear_bonus: float
+    unsafe_descent_penalty: float
+    unsafe_descent_distance: float
 
 
 @dataclass(slots=True)
@@ -54,6 +64,8 @@ class GameConfig:
 class TrainingConfig:
     total_timesteps: int
     learning_rate: float
+    learning_rate_schedule: str
+    learning_rate_end: float
     buffer_size: int
     learning_starts: int
     batch_size: int
@@ -79,6 +91,8 @@ class TrainingConfig:
 class EvaluationConfig:
     deterministic: bool
     episodes: int
+    eval_freq_steps: int
+    headless: bool
 
 
 @dataclass(slots=True)

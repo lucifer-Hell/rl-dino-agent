@@ -6,6 +6,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 from stable_baselines3 import DQN
+from stable_baselines3.common.utils import LinearSchedule
 
 from rl_dino_agent.config import AppConfig
 from rl_dino_agent.training.callbacks import build_callback_list
@@ -38,6 +39,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Force headless browser mode for training stability.",
     )
+    parser.add_argument(
+        "--resume-final-epsilon",
+        action="store_true",
+        help="When resuming, keep epsilon fixed at the configured final value instead of re-annealing.",
+    )
     return parser.parse_args()
 
 
@@ -52,6 +58,18 @@ def print_summary(console: Console, config: AppConfig, run_dir: Path) -> None:
     table.add_row("Timesteps", str(config.training.total_timesteps))
     table.add_row("Run dir", str(run_dir))
     console.print(table)
+
+
+def freeze_resume_exploration(model: DQN, final_epsilon: float) -> None:
+    model.exploration_initial_eps = final_epsilon
+    model.exploration_final_eps = final_epsilon
+    model.exploration_fraction = 0.0
+    model.exploration_schedule = LinearSchedule(
+        start=final_epsilon,
+        end=final_epsilon,
+        end_fraction=0.0,
+    )
+    model.exploration_rate = final_epsilon
 
 
 def main() -> None:
@@ -77,6 +95,11 @@ def main() -> None:
             tensorboard_log=tensorboard_log,
         )
         model.verbose = config.training.verbose
+        if args.resume_final_epsilon:
+            freeze_resume_exploration(model, config.training.exploration_final_eps)
+            console.print(
+                f"[bold yellow]Resume exploration locked[/bold yellow] at epsilon={config.training.exploration_final_eps}"
+            )
     else:
         model = build_dqn_model(
             config,
@@ -98,6 +121,7 @@ def main() -> None:
             callback=callbacks,
             progress_bar=True,
             tb_log_name=config.run.name,
+            reset_num_timesteps=args.resume_from is None,
         )
         model.save(str(run_dir / "final_model"))
         console.print(f"[bold green]Training complete.[/bold green] Model saved to {run_dir / 'final_model.zip'}")

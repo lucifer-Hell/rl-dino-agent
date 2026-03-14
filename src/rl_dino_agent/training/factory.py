@@ -17,12 +17,25 @@ def build_vector_env(config: AppConfig):
     return VecTransposeImage(vec_env)
 
 
+def build_learning_rate(training) -> float | callable:
+    if training.learning_rate_schedule == "constant":
+        return training.learning_rate
+
+    start = float(training.learning_rate)
+    end = float(training.learning_rate_end)
+
+    def linear_schedule(progress_remaining: float) -> float:
+        return end + (start - end) * max(progress_remaining, 0.0)
+
+    return linear_schedule
+
+
 def build_dqn_model(config: AppConfig, env, tensorboard_log: str) -> DQN:
     training = config.training
     return DQN(
         policy=training.model_policy,
         env=env,
-        learning_rate=training.learning_rate,
+        learning_rate=build_learning_rate(training),
         buffer_size=training.buffer_size,
         learning_starts=training.learning_starts,
         batch_size=training.batch_size,
@@ -39,4 +52,3 @@ def build_dqn_model(config: AppConfig, env, tensorboard_log: str) -> DQN:
         verbose=training.verbose,
         seed=config.run.seed,
     )
-

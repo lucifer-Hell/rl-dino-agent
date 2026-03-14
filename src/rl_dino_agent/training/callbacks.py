@@ -20,14 +20,17 @@ class TrainingArtifactsCallback(BaseCallback):
         self.plot_every_episodes = max(1, plot_every_episodes)
         self.metrics_path = self.run_dir / "metrics.csv"
         self.best_model_path = self.run_dir / "best_model.zip"
+        self.best_score_model_path = self.run_dir / "best_score_model.zip"
         self.rewards: list[float] = []
         self.lengths: list[int] = []
+        self.scores: list[int] = []
         self.best_reward = float("-inf")
+        self.best_score = -1
         self._metrics_handle = None
 
     def _on_training_start(self) -> None:
         self._metrics_handle = self.metrics_path.open("w", encoding="utf-8", newline="\n")
-        self._metrics_handle.write("episode,reward,length\n")
+        self._metrics_handle.write("episode,reward,length,score\n")
         self._metrics_handle.flush()
 
     def _on_step(self) -> bool:
@@ -38,16 +41,21 @@ class TrainingArtifactsCallback(BaseCallback):
                 continue
             episode_reward = float(episode["r"])
             episode_length = int(episode["l"])
+            episode_score = int(info.get("score", 0))
             self.rewards.append(episode_reward)
             self.lengths.append(episode_length)
+            self.scores.append(episode_score)
             if self._metrics_handle is not None:
                 self._metrics_handle.write(
-                    f"{len(self.rewards)},{episode_reward},{episode_length}\n"
+                    f"{len(self.rewards)},{episode_reward},{episode_length},{episode_score}\n"
                 )
                 self._metrics_handle.flush()
             if episode_reward >= self.best_reward:
                 self.best_reward = episode_reward
                 self.model.save(str(self.best_model_path.with_suffix("")))
+            if episode_score >= self.best_score:
+                self.best_score = episode_score
+                self.model.save(str(self.best_score_model_path.with_suffix("")))
             if len(self.rewards) % self.plot_every_episodes == 0:
                 self._write_plots()
         return True
@@ -64,9 +72,11 @@ class TrainingArtifactsCallback(BaseCallback):
         episodes = np.arange(1, len(self.rewards) + 1)
         rewards = np.array(self.rewards, dtype=np.float32)
         lengths = np.array(self.lengths, dtype=np.float32)
+        scores = np.array(self.scores, dtype=np.float32)
         reward_ma = _moving_average(rewards, window=10)
+        score_ma = _moving_average(scores, window=10)
 
-        fig, axes = plt.subplots(2, 1, figsize=(10, 8), tight_layout=True)
+        fig, axes = plt.subplots(3, 1, figsize=(10, 10), tight_layout=True)
         axes[0].plot(episodes, rewards, label="episode reward", color="#1f77b4", alpha=0.45)
         axes[0].plot(episodes[: len(reward_ma)], reward_ma, label="reward MA(10)", color="#d62728")
         axes[0].set_title("Training Reward")
@@ -80,6 +90,14 @@ class TrainingArtifactsCallback(BaseCallback):
         axes[1].set_xlabel("Episode")
         axes[1].set_ylabel("Steps")
         axes[1].grid(alpha=0.3)
+
+        axes[2].plot(episodes, scores, label="episode score", color="#9467bd", alpha=0.45)
+        axes[2].plot(episodes[: len(score_ma)], score_ma, label="score MA(10)", color="#8c564b")
+        axes[2].set_title("Episode Score")
+        axes[2].set_xlabel("Episode")
+        axes[2].set_ylabel("Score")
+        axes[2].legend()
+        axes[2].grid(alpha=0.3)
 
         fig.savefig(self.run_dir / "training_curves.png")
         plt.close(fig)
