@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from collections import deque
 
 import matplotlib.pyplot as plt
 import numpy as np
-from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback, CallbackList
+from stable_baselines3.common.callbacks import BaseCallback, CallbackList
 
 
 class TrainingArtifactsCallback(BaseCallback):
@@ -18,11 +19,16 @@ class TrainingArtifactsCallback(BaseCallback):
         self.run_dir = run_dir
         self.plot_every_episodes = max(1, plot_every_episodes)
         self.metrics_path = self.run_dir / "metrics.csv"
+        self.best_model_path = self.run_dir / "best_model.zip"
         self.rewards: list[float] = []
         self.lengths: list[int] = []
+        self.best_reward = float("-inf")
+        self._metrics_handle = None
 
     def _on_training_start(self) -> None:
-        self.metrics_path.write_text("episode,reward,length\n", encoding="utf-8")
+        self._metrics_handle = self.metrics_path.open("w", encoding="utf-8", newline="\n")
+        self._metrics_handle.write("episode,reward,length\n")
+        self._metrics_handle.flush()
 
     def _on_step(self) -> bool:
         infos = self.locals.get("infos", [])
@@ -30,18 +36,27 @@ class TrainingArtifactsCallback(BaseCallback):
             episode = info.get("episode")
             if not episode:
                 continue
-            self.rewards.append(float(episode["r"]))
-            self.lengths.append(int(episode["l"]))
-            with self.metrics_path.open("a", encoding="utf-8") as handle:
-                handle.write(
-                    f"{len(self.rewards)},{float(episode['r'])},{int(episode['l'])}\n"
+            episode_reward = float(episode["r"])
+            episode_length = int(episode["l"])
+            self.rewards.append(episode_reward)
+            self.lengths.append(episode_length)
+            if self._metrics_handle is not None:
+                self._metrics_handle.write(
+                    f"{len(self.rewards)},{episode_reward},{episode_length}\n"
                 )
+                self._metrics_handle.flush()
+            if episode_reward >= self.best_reward:
+                self.best_reward = episode_reward
+                self.model.save(str(self.best_model_path.with_suffix("")))
             if len(self.rewards) % self.plot_every_episodes == 0:
                 self._write_plots()
         return True
 
     def _on_training_end(self) -> None:
         self._write_plots()
+        if self._metrics_handle is not None:
+            self._metrics_handle.close()
+            self._metrics_handle = None
 
     def _write_plots(self) -> None:
         if not self.rewards:
@@ -70,6 +85,49 @@ class TrainingArtifactsCallback(BaseCallback):
         plt.close(fig)
 
 
+class RollingCheckpointCallback(BaseCallback):
+    def __init__(
+        self,
+        save_freq: int,
+        save_path: Path,
+        name_prefix: str,
+        keep_last: int,
+        save_replay_buffer: bool,
+        verbose: int = 0,
+    ) -> None:
+        super().__init__(verbose=verbose)
+        self.save_freq = max(1, save_freq)
+        self.save_path = save_path
+        self.name_prefix = name_prefix
+        self.keep_last = max(1, keep_last)
+        self.save_replay_buffer = save_replay_buffer
+        self.saved_steps: deque[int] = deque()
+
+    def _on_training_start(self) -> None:
+        self.save_path.mkdir(parents=True, exist_ok=True)
+
+    def _on_step(self) -> bool:
+        if self.num_timesteps % self.save_freq != 0:
+            return True
+        step = self.num_timesteps
+        model_stem = self.save_path / f"{self.name_prefix}_{step}_steps"
+        self.model.save(str(model_stem))
+        if self.save_replay_buffer and hasattr(self.model, "save_replay_buffer"):
+            self.model.save_replay_buffer(
+                str(self.save_path / f"{self.name_prefix}_replay_buffer_{step}_steps.pkl")
+            )
+        self.saved_steps.append(step)
+        while len(self.saved_steps) > self.keep_last:
+            stale_step = self.saved_steps.popleft()
+            stale_model = self.save_path / f"{self.name_prefix}_{stale_step}_steps.zip"
+            if stale_model.exists():
+                stale_model.unlink()
+            stale_buffer = self.save_path / f"{self.name_prefix}_replay_buffer_{stale_step}_steps.pkl"
+            if stale_buffer.exists():
+                stale_buffer.unlink()
+        return True
+
+
 def _moving_average(values: np.ndarray, window: int) -> np.ndarray:
     if len(values) < window:
         return values
@@ -80,15 +138,18 @@ def _moving_average(values: np.ndarray, window: int) -> np.ndarray:
 def build_callback_list(
     run_dir: Path,
     save_checkpoint_every_steps: int,
+    keep_last_checkpoints: int,
+    save_replay_buffer_checkpoints: bool,
     plot_every_episodes: int,
     verbose: int,
 ) -> CallbackList:
-    checkpoint_callback = CheckpointCallback(
+    checkpoint_callback = RollingCheckpointCallback(
         save_freq=save_checkpoint_every_steps,
-        save_path=str(run_dir / "checkpoints"),
+        save_path=run_dir / "checkpoints",
         name_prefix="dqn_model",
-        save_replay_buffer=True,
-        save_vecnormalize=False,
+        keep_last=keep_last_checkpoints,
+        save_replay_buffer=save_replay_buffer_checkpoints,
+        verbose=verbose,
     )
     artifacts_callback = TrainingArtifactsCallback(
         run_dir=run_dir,
@@ -96,4 +157,3 @@ def build_callback_list(
         verbose=verbose,
     )
     return CallbackList([checkpoint_callback, artifacts_callback])
-

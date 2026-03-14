@@ -5,6 +5,7 @@ from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table
+from stable_baselines3 import DQN
 
 from rl_dino_agent.config import AppConfig
 from rl_dino_agent.training.callbacks import build_callback_list
@@ -19,6 +20,18 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("configs/default.yaml"),
         help="Path to the training config YAML.",
+    )
+    parser.add_argument(
+        "--resume-from",
+        type=Path,
+        default=None,
+        help="Optional checkpoint zip to resume training from.",
+    )
+    parser.add_argument(
+        "--timesteps",
+        type=int,
+        default=None,
+        help="Optional total timesteps for this training invocation.",
     )
     return parser.parse_args()
 
@@ -40,19 +53,34 @@ def main() -> None:
     args = parse_args()
     console = Console()
     config = AppConfig.load(args.config)
+    if args.timesteps is not None:
+        config.training.total_timesteps = args.timesteps
     run_dir = initialize_run_dir(config)
     persist_run_metadata(config, args.config.resolve(), run_dir)
     print_summary(console, config, run_dir)
 
     env = build_vector_env(config)
-    model = build_dqn_model(
-        config,
-        env=env,
-        tensorboard_log=str(run_dir / config.training.tensorboard_log_subdir),
-    )
+    tensorboard_log = str(run_dir / config.training.tensorboard_log_subdir)
+    if args.resume_from is not None:
+        console.print(f"[bold yellow]Resuming from[/bold yellow] {args.resume_from}")
+        model = DQN.load(
+            str(args.resume_from.resolve()),
+            env=env,
+            device=config.training.device,
+            tensorboard_log=tensorboard_log,
+        )
+        model.verbose = config.training.verbose
+    else:
+        model = build_dqn_model(
+            config,
+            env=env,
+            tensorboard_log=tensorboard_log,
+        )
     callbacks = build_callback_list(
         run_dir=run_dir,
         save_checkpoint_every_steps=config.training.save_checkpoint_every_steps,
+        keep_last_checkpoints=config.training.keep_last_checkpoints,
+        save_replay_buffer_checkpoints=config.training.save_replay_buffer_checkpoints,
         plot_every_episodes=config.training.plot_every_episodes,
         verbose=config.training.verbose,
     )

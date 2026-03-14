@@ -41,6 +41,8 @@ training:
   stats_window_size: 50
   tensorboard_log_subdir: "tensorboard"
   save_checkpoint_every_steps: 10000
+  keep_last_checkpoints: 3
+  save_replay_buffer_checkpoints: false
   plot_every_episodes: 10
   model_policy: "CnnPolicy"
   device: "auto"
@@ -49,4 +51,3 @@ training:
 evaluation:
   deterministic: true
   episodes: 5
-

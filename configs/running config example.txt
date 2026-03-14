@@ -1,0 +1,1 @@
+.\.venv\Scripts\python.exe .\scripts\train.py --config .\configs\default.yaml

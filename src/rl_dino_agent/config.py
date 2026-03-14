@@ -67,6 +67,8 @@ class TrainingConfig:
     stats_window_size: int
     tensorboard_log_subdir: str
     save_checkpoint_every_steps: int
+    keep_last_checkpoints: int
+    save_replay_buffer_checkpoints: bool
     plot_every_episodes: int
     model_policy: str
     device: str

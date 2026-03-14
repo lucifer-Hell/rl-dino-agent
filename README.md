@@ -74,6 +74,12 @@ Or do the full setup in one shot:
 python .\scripts\train.py --config .\configs\default.yaml
 ```
 
+Resume from the saved partial model:
+
+```powershell
+python .\scripts\train.py --config .\configs\default.yaml --resume-from .\artifacts\best_partial_model_140k_steps.zip
+```
+
 Artifacts are written under `runs/<timestamp>-<run_name>/`.
 
 ## Watch Training
@@ -88,6 +94,16 @@ Start TensorBoard with:
 ```powershell
 .\scripts\start_tensorboard.ps1
 ```
+
+## Record Demos
+
+You can record your own play sessions for later imitation learning or fine-tuning:
+
+```powershell
+python .\scripts\record_demos.py --episodes 5
+```
+
+This writes compressed trajectories under `demos/episode_###/` with frames, actions, rewards, and metadata.
 
 ## Notes
 

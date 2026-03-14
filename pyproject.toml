@@ -18,6 +18,7 @@ dependencies = [
   "rich>=13.7,<14.0",
   "stable-baselines3>=2.3,<3.0",
   "tensorboard>=2.16,<3.0",
+  "tqdm>=4.66,<5.0",
 ]
 
 [tool.setuptools]
