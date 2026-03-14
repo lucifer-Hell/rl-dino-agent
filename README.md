@@ -62,6 +62,12 @@ src/rl_dino_agent/
 
 3. Make sure the game repo exists at `D:\rl-dino`, or update `configs/default.yaml`.
 
+Or do the full setup in one shot:
+
+```powershell
+.\scripts\setup.ps1
+```
+
 ## Train
 
 ```powershell
@@ -70,8 +76,20 @@ python .\scripts\train.py --config .\configs\default.yaml
 
 Artifacts are written under `runs/<timestamp>-<run_name>/`.
 
+## Watch Training
+
+- the browser stays visible by default, so you can see the agent act
+- TensorBoard logs are written into each run folder
+- CSV metrics are written to `metrics.csv`
+- plots are refreshed into `training_curves.png`
+
+Start TensorBoard with:
+
+```powershell
+.\scripts\start_tensorboard.ps1
+```
+
 ## Notes
 
 - The training pipeline is intentionally config-first so we can plug in Optuna later without restructuring the repo.
 - The default setup keeps the browser visible so you can watch the agent play while metrics are being logged.
-
