@@ -28,6 +28,7 @@ class BrowserConfig:
     slow_mo_ms: int
     viewport_width: int
     viewport_height: int
+    record_video_dir: str | None = None
 
 
 @dataclass(slots=True)
@@ -131,7 +132,13 @@ class AppConfig:
                 repo_path=Path(raw["game"]["repo_path"]),
                 index_file=raw["game"]["index_file"],
                 serve=ServeConfig(**raw["game"]["serve"]),
-                browser=BrowserConfig(**raw["game"]["browser"]),
+                browser=BrowserConfig(
+                    headless=raw["game"]["browser"]["headless"],
+                    slow_mo_ms=raw["game"]["browser"]["slow_mo_ms"],
+                    viewport_width=raw["game"]["browser"]["viewport_width"],
+                    viewport_height=raw["game"]["browser"]["viewport_height"],
+                    record_video_dir=raw["game"]["browser"].get("record_video_dir"),
+                ),
                 env=EnvConfig(**raw["game"]["env"]),
             ),
             training=TrainingConfig(**raw["training"]),

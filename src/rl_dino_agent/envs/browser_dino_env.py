@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+from pathlib import Path
 from typing import Any
 import base64
 import time
@@ -63,12 +64,17 @@ class BrowserDinoEnv(gym.Env[np.ndarray, int]):
             headless=self.config.game.browser.headless,
             slow_mo=self.config.game.browser.slow_mo_ms,
         )
-        context = self.browser.new_context(
-            viewport={
+        context_kwargs = {
+            "viewport": {
                 "width": self.config.game.browser.viewport_width,
                 "height": self.config.game.browser.viewport_height,
             }
-        )
+        }
+        if self.config.game.browser.record_video_dir:
+            video_dir = str(Path(self.config.game.browser.record_video_dir).resolve())
+            Path(video_dir).mkdir(parents=True, exist_ok=True)
+            context_kwargs["record_video_dir"] = video_dir
+        context = self.browser.new_context(**context_kwargs)
         self.page = context.new_page()
         url = (
             f"http://{self.config.game.serve.host}:{self.config.game.serve.port}/"

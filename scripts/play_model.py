@@ -22,6 +22,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--visible", action="store_true")
     parser.add_argument("--deterministic", action="store_true")
     parser.add_argument("--sleep-after-episode", type=float, default=1.0)
+    parser.add_argument("--record-video-dir", type=Path, default=None)
     return parser.parse_args()
 
 
@@ -43,6 +44,9 @@ def main() -> None:
         config.game.browser.headless = False
     elif args.headless:
         config.game.browser.headless = True
+    if args.record_video_dir is not None:
+        args.record_video_dir.mkdir(parents=True, exist_ok=True)
+        config.game.browser.record_video_dir = str(args.record_video_dir.resolve())
 
     env = build_vector_env(config)
     model = DQN.load(str(args.model.resolve()), env=env, device=config.training.device)
@@ -78,6 +82,14 @@ def main() -> None:
         )
     finally:
         env.close()
+        if args.record_video_dir is not None:
+            videos = sorted(
+                args.record_video_dir.glob("*.webm"),
+                key=lambda path: path.stat().st_mtime,
+                reverse=True,
+            )
+            if videos:
+                console.print(f"video={videos[0].resolve()}")
 
 
 if __name__ == "__main__":
