@@ -264,7 +264,7 @@ src/rl_dino_agent/
 1. Create a virtual environment:
 
 ```powershell
-C:\Users\panka\AppData\Local\Programs\Python\Python312\python.exe -m venv .venv
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
