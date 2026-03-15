@@ -9,7 +9,11 @@ In simple words:
 - it learns by trial and error
 - we improve it with tuning and longer training runs
 
-The project is built on top of a local game repo at `D:\rl-dino`.
+The project is built on top of the game repo:
+
+- https://github.com/lucifer-Hell/rl-dino
+
+For local training, that repo still needs to be cloned somewhere on your machine, and the config files must point to that local folder.
 
 ## Experiment Overview
 
@@ -270,7 +274,13 @@ python -m pip install -e .
 python -m playwright install chromium
 ```
 
-3. Make sure the game repo exists at `D:\rl-dino`
+3. Clone the game repo locally:
+
+```powershell
+git clone https://github.com/lucifer-Hell/rl-dino D:\rl-dino
+```
+
+If you clone it somewhere else, update the `repo_path` value in the YAML config you want to use.
 
 Or run everything in one step:
 
