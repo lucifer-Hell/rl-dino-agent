@@ -75,6 +75,10 @@ python .\scripts\play_model.py --config .\configs\optuna_phase2_best_resume_30k_
 
 A recorded demo is included in this repo:
 
+[![RL Dino demo](assets/demo.gif)](assets/demo.webm)
+
+Direct video file:
+
 [Watch the demo video](assets/demo.webm)
 
 This demo was recorded from the current trained model and gives users a quick way to see what the project has built without setting up the environment first.
