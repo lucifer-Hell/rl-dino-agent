@@ -1,0 +1,76 @@
+run:
+  name: "dqn-optuna-tune-gpu"
+  seed: 7
+  output_root: "runs"
+  save_replay_frames: false
+
+game:
+  repo_path: "D:/rl-dino"
+  index_file: "index.html"
+  serve:
+    host: "127.0.0.1"
+    port: 8000
+    auto_start: true
+  browser:
+    headless: true
+    slow_mo_ms: 0
+    viewport_width: 960
+    viewport_height: 540
+  env:
+    canvas_selector: "#game"
+    frame_width: 84
+    frame_height: 84
+    frame_stack: 4
+    grayscale: true
+    crop_top: 0
+    crop_bottom: 16
+    crop_left: 0
+    crop_right: 0
+    step_ms: 16.6667
+    max_episode_steps: 5000
+    reward_mode: "clip_survival"
+    reward_scale: 1.0
+    jump_penalty: 0.017069709841005375
+    obstacle_clear_bonus: 0.13078693876045686
+    unsafe_descent_penalty: 0.03693462091678158
+    unsafe_descent_distance: 26.359653026322466
+
+training:
+  total_timesteps: 40000
+  learning_rate: 0.0001335235020298564
+  learning_rate_schedule: "linear"
+  learning_rate_end: 0.00003716129232257223
+  buffer_size: 100000
+  learning_starts: 2000
+  batch_size: 64
+  gamma: 0.987128359453858
+  train_freq: 4
+  gradient_steps: 1
+  target_update_interval: 500
+  exploration_fraction: 0.07795803918774492
+  exploration_initial_eps: 1.0
+  exploration_final_eps: 0.05
+  stats_window_size: 50
+  tensorboard_log_subdir: "tensorboard"
+  save_checkpoint_every_steps: 40000
+  keep_last_checkpoints: 1
+  save_replay_buffer_checkpoints: false
+  plot_every_episodes: 10
+  model_policy: "CnnPolicy"
+  feature_extractor: "medium_dino_cnn"
+  features_dim: 256
+  q_net_arch: [256, 128]
+  device: "auto"
+  verbose: 0
+  early_stop_patience_episodes: 40
+  early_stop_min_episodes: 50
+  early_stop_min_timesteps: 12000
+  early_stop_window_episodes: 10
+  early_stop_metric: "score"
+  early_stop_min_delta: 5.0
+
+evaluation:
+  deterministic: true
+  episodes: 1
+  eval_freq_steps: 0
+  headless: true

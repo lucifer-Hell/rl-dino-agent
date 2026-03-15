@@ -19,6 +19,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--episodes", type=int, default=3)
     parser.add_argument("--headless", action="store_true")
+    parser.add_argument("--visible", action="store_true")
     parser.add_argument("--deterministic", action="store_true")
     parser.add_argument("--sleep-after-episode", type=float, default=1.0)
     return parser.parse_args()
@@ -38,7 +39,9 @@ def main() -> None:
     args = parse_args()
     console = Console()
     config = AppConfig.load(args.config)
-    if args.headless:
+    if args.visible:
+        config.game.browser.headless = False
+    elif args.headless:
         config.game.browser.headless = True
 
     env = build_vector_env(config)

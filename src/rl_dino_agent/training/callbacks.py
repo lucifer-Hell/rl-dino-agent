@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 from collections import deque
 
 import matplotlib.pyplot as plt
 import numpy as np
-from stable_baselines3.common.callbacks import BaseCallback, CallbackList
+from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalCallback
 
 
 class TrainingArtifactsCallback(BaseCallback):
@@ -19,7 +21,7 @@ class TrainingArtifactsCallback(BaseCallback):
         self.run_dir = run_dir
         self.plot_every_episodes = max(1, plot_every_episodes)
         self.metrics_path = self.run_dir / "metrics.csv"
-        self.best_model_path = self.run_dir / "best_model.zip"
+        self.best_reward_model_path = self.run_dir / "best_reward_model.zip"
         self.best_score_model_path = self.run_dir / "best_score_model.zip"
         self.rewards: list[float] = []
         self.lengths: list[int] = []
@@ -52,7 +54,7 @@ class TrainingArtifactsCallback(BaseCallback):
                 self._metrics_handle.flush()
             if episode_reward >= self.best_reward:
                 self.best_reward = episode_reward
-                self.model.save(str(self.best_model_path.with_suffix("")))
+                self.model.save(str(self.best_reward_model_path.with_suffix("")))
             if episode_score >= self.best_score:
                 self.best_score = episode_score
                 self.model.save(str(self.best_score_model_path.with_suffix("")))
@@ -146,6 +148,131 @@ class RollingCheckpointCallback(BaseCallback):
         return True
 
 
+class StopOnTrainingPlateauCallback(BaseCallback):
+    def __init__(
+        self,
+        patience_episodes: int,
+        min_episodes: int,
+        min_timesteps: int,
+        metric: str,
+        window_episodes: int,
+        min_delta: float,
+        verbose: int = 0,
+    ) -> None:
+        super().__init__(verbose=verbose)
+        self.patience_episodes = max(0, patience_episodes)
+        self.min_episodes = max(0, min_episodes)
+        self.min_timesteps = max(0, min_timesteps)
+        self.metric = metric
+        self.window_episodes = max(1, window_episodes)
+        self.min_delta = float(min_delta)
+        self.metric_history: list[float] = []
+        self.best_window_value = float("-inf")
+        self.best_episode_index = 0
+
+    def _extract_metric(self, info: dict) -> float | None:
+        episode = info.get("episode")
+        if not episode:
+            return None
+        if self.metric == "reward":
+            return float(episode["r"])
+        return float(info.get("score", 0))
+
+    def _on_step(self) -> bool:
+        if self.patience_episodes <= 0:
+            return True
+
+        infos = self.locals.get("infos", [])
+        should_continue = True
+        for info in infos:
+            metric_value = self._extract_metric(info)
+            if metric_value is None:
+                continue
+
+            self.metric_history.append(metric_value)
+            episode_idx = len(self.metric_history)
+            window_values = self.metric_history[-self.window_episodes :]
+            window_mean = float(np.mean(window_values))
+
+            if window_mean > self.best_window_value + self.min_delta:
+                self.best_window_value = window_mean
+                self.best_episode_index = episode_idx
+
+            enough_episodes = episode_idx >= self.min_episodes
+            enough_timesteps = self.num_timesteps >= self.min_timesteps
+            stale_episodes = episode_idx - self.best_episode_index
+            if enough_episodes and enough_timesteps and stale_episodes >= self.patience_episodes:
+                if self.verbose > 0:
+                    print(
+                        "Early stopping: training plateau detected "
+                        f"(metric={self.metric}, best_window={self.best_window_value:.3f}, "
+                        f"episodes_since_improvement={stale_episodes})."
+                    )
+                should_continue = False
+                break
+        return should_continue
+
+
+class PeriodicDemoCallback(BaseCallback):
+    def __init__(
+        self,
+        run_dir: Path,
+        config_path: Path,
+        every_steps: int,
+        episodes: int,
+        deterministic: bool,
+        headless: bool,
+        sleep_after_episode: float,
+        verbose: int = 0,
+    ) -> None:
+        super().__init__(verbose=verbose)
+        self.run_dir = run_dir
+        self.config_path = config_path
+        self.every_steps = max(0, every_steps)
+        self.episodes = max(1, episodes)
+        self.deterministic = deterministic
+        self.headless = headless
+        self.sleep_after_episode = max(0.0, sleep_after_episode)
+        self.demo_dir = self.run_dir / "demo"
+        self.demo_model_stem = self.demo_dir / "latest_demo_model"
+
+    def _on_training_start(self) -> None:
+        if self.every_steps > 0:
+            self.demo_dir.mkdir(parents=True, exist_ok=True)
+
+    def _on_step(self) -> bool:
+        if self.every_steps <= 0 or self.num_timesteps % self.every_steps != 0:
+            return True
+
+        self.model.save(str(self.demo_model_stem))
+        command = [
+            str(Path(sys.executable)),
+            str(Path.cwd() / "scripts" / "play_model.py"),
+            "--config",
+            str(self.config_path),
+            "--model",
+            str(self.demo_model_stem.with_suffix(".zip")),
+            "--episodes",
+            str(self.episodes),
+            "--sleep-after-episode",
+            str(self.sleep_after_episode),
+        ]
+        if self.deterministic:
+            command.append("--deterministic")
+        if self.headless:
+            command.append("--headless")
+        else:
+            command.append("--visible")
+
+        if self.verbose > 0:
+            print(
+                f"Launching demo playback at step={self.num_timesteps} "
+                f"using {self.demo_model_stem.with_suffix('.zip')}"
+            )
+        subprocess.run(command, check=True, cwd=Path.cwd())
+        return True
+
+
 def _moving_average(values: np.ndarray, window: int) -> np.ndarray:
     if len(values) < window:
         return values
@@ -155,11 +282,27 @@ def _moving_average(values: np.ndarray, window: int) -> np.ndarray:
 
 def build_callback_list(
     run_dir: Path,
+    config_path: Path,
     save_checkpoint_every_steps: int,
     keep_last_checkpoints: int,
     save_replay_buffer_checkpoints: bool,
     plot_every_episodes: int,
     verbose: int,
+    eval_env=None,
+    eval_freq_steps: int = 0,
+    eval_episodes: int = 5,
+    eval_deterministic: bool = True,
+    early_stop_patience_episodes: int = 0,
+    early_stop_min_episodes: int = 0,
+    early_stop_min_timesteps: int = 0,
+    early_stop_window_episodes: int = 10,
+    early_stop_metric: str = "score",
+    early_stop_min_delta: float = 0.0,
+    demo_every_steps: int = 0,
+    demo_episodes: int = 1,
+    demo_deterministic: bool = True,
+    demo_headless: bool = False,
+    demo_sleep_after_episode: float = 0.5,
 ) -> CallbackList:
     checkpoint_callback = RollingCheckpointCallback(
         save_freq=save_checkpoint_every_steps,
@@ -174,4 +317,45 @@ def build_callback_list(
         plot_every_episodes=plot_every_episodes,
         verbose=verbose,
     )
-    return CallbackList([checkpoint_callback, artifacts_callback])
+    callbacks: list[BaseCallback] = [checkpoint_callback, artifacts_callback]
+    if demo_every_steps > 0:
+        callbacks.append(
+            PeriodicDemoCallback(
+                run_dir=run_dir,
+                config_path=config_path,
+                every_steps=demo_every_steps,
+                episodes=demo_episodes,
+                deterministic=demo_deterministic,
+                headless=demo_headless,
+                sleep_after_episode=demo_sleep_after_episode,
+                verbose=verbose,
+            )
+        )
+    if early_stop_patience_episodes > 0:
+        callbacks.append(
+            StopOnTrainingPlateauCallback(
+                patience_episodes=early_stop_patience_episodes,
+                min_episodes=early_stop_min_episodes,
+                min_timesteps=early_stop_min_timesteps,
+                metric=early_stop_metric,
+                window_episodes=early_stop_window_episodes,
+                min_delta=early_stop_min_delta,
+                verbose=verbose,
+            )
+        )
+    if eval_env is not None and eval_freq_steps > 0:
+        eval_dir = run_dir / "eval"
+        eval_dir.mkdir(parents=True, exist_ok=True)
+        callbacks.append(
+            EvalCallback(
+                eval_env=eval_env,
+                best_model_save_path=str(eval_dir),
+                log_path=str(eval_dir),
+                eval_freq=max(1, eval_freq_steps),
+                n_eval_episodes=max(1, eval_episodes),
+                deterministic=eval_deterministic,
+                render=False,
+                verbose=verbose,
+            )
+        )
+    return CallbackList(callbacks)

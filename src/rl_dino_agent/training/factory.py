@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 from stable_baselines3 import DQN
@@ -11,13 +12,23 @@ from rl_dino_agent.envs import BrowserDinoEnv
 from rl_dino_agent.training.extractors import MediumDinoCNN
 
 
-def build_vector_env(config: AppConfig):
+def _build_monitored_vec_env(config: AppConfig):
     def _make_env():
         env = BrowserDinoEnv(config)
         return Monitor(env)
 
     vec_env = DummyVecEnv([_make_env])
     return VecTransposeImage(vec_env)
+
+
+def build_vector_env(config: AppConfig):
+    return _build_monitored_vec_env(config)
+
+
+def build_eval_vector_env(config: AppConfig):
+    eval_config = deepcopy(config)
+    eval_config.game.browser.headless = config.evaluation.headless
+    return _build_monitored_vec_env(eval_config)
 
 
 def build_learning_rate(training) -> float | callable:

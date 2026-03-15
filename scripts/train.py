@@ -10,7 +10,11 @@ from stable_baselines3.common.utils import LinearSchedule
 
 from rl_dino_agent.config import AppConfig
 from rl_dino_agent.training.callbacks import build_callback_list
-from rl_dino_agent.training.factory import build_dqn_model, build_vector_env
+from rl_dino_agent.training.factory import (
+    build_dqn_model,
+    build_eval_vector_env,
+    build_vector_env,
+)
 from rl_dino_agent.utils.plotting import initialize_run_dir, persist_run_metadata
 
 
@@ -85,6 +89,14 @@ def main() -> None:
     print_summary(console, config, run_dir)
 
     env = build_vector_env(config)
+    eval_env = None
+    try:
+        eval_env = build_eval_vector_env(config)
+    except Exception as exc:
+        console.print(
+            "[bold yellow]Evaluation disabled:[/bold yellow] "
+            f"{exc}"
+        )
     tensorboard_log = str(run_dir / config.training.tensorboard_log_subdir)
     if args.resume_from is not None:
         console.print(f"[bold yellow]Resuming from[/bold yellow] {args.resume_from}")
@@ -108,11 +120,27 @@ def main() -> None:
         )
     callbacks = build_callback_list(
         run_dir=run_dir,
+        config_path=args.config.resolve(),
         save_checkpoint_every_steps=config.training.save_checkpoint_every_steps,
         keep_last_checkpoints=config.training.keep_last_checkpoints,
         save_replay_buffer_checkpoints=config.training.save_replay_buffer_checkpoints,
         plot_every_episodes=config.training.plot_every_episodes,
         verbose=config.training.verbose,
+        eval_env=eval_env,
+        eval_freq_steps=config.evaluation.eval_freq_steps,
+        eval_episodes=config.evaluation.episodes,
+        eval_deterministic=config.evaluation.deterministic,
+        early_stop_patience_episodes=config.training.early_stop_patience_episodes,
+        early_stop_min_episodes=config.training.early_stop_min_episodes,
+        early_stop_min_timesteps=config.training.early_stop_min_timesteps,
+        early_stop_window_episodes=config.training.early_stop_window_episodes,
+        early_stop_metric=config.training.early_stop_metric,
+        early_stop_min_delta=config.training.early_stop_min_delta,
+        demo_every_steps=config.training.demo_every_steps,
+        demo_episodes=config.training.demo_episodes,
+        demo_deterministic=config.training.demo_deterministic,
+        demo_headless=config.training.demo_headless,
+        demo_sleep_after_episode=config.training.demo_sleep_after_episode,
     )
 
     try:
@@ -127,6 +155,8 @@ def main() -> None:
         console.print(f"[bold green]Training complete.[/bold green] Model saved to {run_dir / 'final_model.zip'}")
     finally:
         env.close()
+        if eval_env is not None:
+            eval_env.close()
 
 
 if __name__ == "__main__":

@@ -88,6 +88,17 @@ class TrainingConfig:
     q_net_arch: list[int]
     device: str
     verbose: int
+    early_stop_patience_episodes: int = 0
+    early_stop_min_episodes: int = 0
+    early_stop_min_timesteps: int = 0
+    early_stop_window_episodes: int = 10
+    early_stop_metric: str = "score"
+    early_stop_min_delta: float = 0.0
+    demo_every_steps: int = 0
+    demo_episodes: int = 1
+    demo_deterministic: bool = True
+    demo_headless: bool = False
+    demo_sleep_after_episode: float = 0.5
 
 
 @dataclass(slots=True)
