@@ -1,5 +1,5 @@
 run:
-  name: "dqn-visual-baseline"
+  name: "dqn-optuna-phase1-best"
   seed: 7
   output_root: "runs"
   save_replay_frames: false
@@ -12,7 +12,7 @@ game:
     port: 8000
     auto_start: true
   browser:
-    headless: false
+    headless: true
     slow_mo_ms: 0
     viewport_width: 960
     viewport_height: 540
@@ -23,31 +23,31 @@ game:
     frame_stack: 4
     grayscale: true
     crop_top: 0
-    crop_bottom: 24
+    crop_bottom: 16
     crop_left: 0
     crop_right: 0
     step_ms: 16.6667
     max_episode_steps: 5000
     reward_mode: "clip_survival"
     reward_scale: 1.0
-    jump_penalty: 0.01
-    obstacle_clear_bonus: 0.35
-    unsafe_descent_penalty: 0.08
-    unsafe_descent_distance: 36.0
+    jump_penalty: 0.017069709841005375
+    obstacle_clear_bonus: 0.13078693876045686
+    unsafe_descent_penalty: 0.03693462091678158
+    unsafe_descent_distance: 26.359653026322466
 
 training:
-  total_timesteps: 150000
-  learning_rate: 0.0001
+  total_timesteps: 50000
+  learning_rate: 0.0001335235020298564
   learning_rate_schedule: "linear"
-  learning_rate_end: 0.00002
-  buffer_size: 50000
+  learning_rate_end: 0.00003716129232257223
+  buffer_size: 100000
   learning_starts: 2000
-  batch_size: 32
-  gamma: 0.99
+  batch_size: 64
+  gamma: 0.987128359453858
   train_freq: 4
   gradient_steps: 1
-  target_update_interval: 1000
-  exploration_fraction: 0.2
+  target_update_interval: 500
+  exploration_fraction: 0.07795803918774492
   exploration_initial_eps: 1.0
   exploration_final_eps: 0.05
   stats_window_size: 50

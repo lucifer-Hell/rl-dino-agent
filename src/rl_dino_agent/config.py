@@ -83,6 +83,9 @@ class TrainingConfig:
     save_replay_buffer_checkpoints: bool
     plot_every_episodes: int
     model_policy: str
+    feature_extractor: str
+    features_dim: int
+    q_net_arch: list[int]
     device: str
     verbose: int
 
